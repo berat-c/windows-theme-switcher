@@ -3,6 +3,8 @@ import json
 import winreg
 import ctypes
 import tkinter as tk
+from tkinter import BooleanVar
+import tkinter.ttk as ttk
 from tkinter import filedialog, messagebox, simpledialog, colorchooser
 from PIL import Image, ImageTk
 import subprocess
@@ -235,6 +237,18 @@ def update_preset_viewer():
         btn.grid(row=i // 4, column=i % 4, padx=5, pady=5)
         add_hover_effect(btn, "#e0e0e0")
 
+
+def toggle_transparency():
+    key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+            value = 1 if transparency_var.get() else 0
+            winreg.SetValueEx(key, "EnableTransparency", 0, winreg.REG_DWORD, value)
+            print("Transparency set to", value)
+    except Exception as e:
+        print("Failed to update transparency:", e)
+
+
 # --- GUI Callbacks ---
 
 def choose_color():
@@ -312,7 +326,6 @@ wallpaper_preview_frame.pack(pady=5)
 wallpaper_preview_label = tk.Label(wallpaper_preview_frame, text="No Preview", fg="gray", bg="#dcdcdc", font=("Segoe UI", 10))
 wallpaper_preview_label.pack(expand=True)
 
-
 choose_wallpaper_btn = tk.Button(left_frame, text="Choose Wallpaper", command=choose_wallpaper, width=20, bg="#0078d7", fg="white", relief="flat")
 choose_wallpaper_btn.pack()
 add_hover_effect(choose_wallpaper_btn, "#0078d7")
@@ -336,6 +349,7 @@ def choose_optional_color(index):
         optional_color_vars[index].set(color_code[1])
         optional_preview_labels[index].config(bg=color_code[1], text=color_code[1])
 
+
 for i, label_text in enumerate(optional_labels):
     row = tk.Frame(right_frame, bg="#f3f3f3")
     row.pack(pady=3, anchor="w")
@@ -347,6 +361,28 @@ for i, label_text in enumerate(optional_labels):
     preview = tk.Label(row, text="Not set", bg="#dcdcdc", width=10, font=("Segoe UI", 10))
     preview.pack(side="left")
     optional_preview_labels.append(preview)
+
+transparency_var = BooleanVar()
+
+def load_transparency_setting():
+    key_path = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path) as key:
+            value, _ = winreg.QueryValueEx(key, "EnableTransparency")
+            transparency_var.set(bool(value))
+    except FileNotFoundError:
+        transparency_var.set(True)  # Default to on
+
+load_transparency_setting()
+
+transparency_check = ttk.Checkbutton(
+    right_frame,  # Replace with your actual frame
+    text="Transparency",
+    variable=transparency_var,
+    command=toggle_transparency,
+    style="Switch.TCheckbutton"  # Optional if you have a custom style
+)
+transparency_check.pack(pady=5)
 
 button_section = tk.Frame(root, bg="#f3f3f3")
 button_section.pack(pady=10)
