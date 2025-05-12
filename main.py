@@ -333,7 +333,7 @@ add_hover_effect(choose_wallpaper_btn, "#0078d7")
 right_frame = tk.Frame(main_frame, bg="#f3f3f3")
 right_frame.pack(side="right", padx=40)
 
-tk.Label(right_frame, text="Optional Colors", font=("Segoe UI", 11), bg="#f3f3f3").pack(pady=(0, 5))
+tk.Label(right_frame, text="Side Colors", font=("Segoe UI", 11), bg="#f3f3f3").pack(pady=(0, 5))
 
 optional_labels = [
     "Link and microphone color",
@@ -342,6 +342,47 @@ optional_labels = [
     "Settings icons and buttons",
     "Pop-up window color"
 ]
+
+control_panel_color_labels = [
+    ("Hilight", "Highlight color (selected items)"),
+    ("HotTrackingColor", "Hyperlink hover color"),
+    ("MenuHilight", "Menu selection highlight")
+]
+
+control_panel_color_vars = {}
+control_panel_preview_labels = {}
+
+def choose_control_panel_color(key_name):
+    color_code = colorchooser.askcolor(title=f"Choose color for {key_name}")
+    if color_code[0]:
+        r, g, b = map(int, color_code[0])
+        rgb_string = f"{r} {g} {b}"
+        control_panel_color_vars[key_name].set(rgb_string)
+        hex_color = f"#{r:02x}{g:02x}{b:02x}"
+        control_panel_preview_labels[key_name].config(bg=hex_color, text=rgb_string)
+
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Control Panel\\Colors", 0, winreg.KEY_SET_VALUE) as key:
+                winreg.SetValueEx(key, key_name, 0, winreg.REG_SZ, rgb_string)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to set {key_name}:\n{e}")
+
+for key, label in control_panel_color_labels:
+    control_panel_color_vars[key] = tk.StringVar()
+
+    row = tk.Frame(right_frame, bg="#f3f3f3")
+    row.pack(pady=3, anchor="w")
+
+    tk.Label(row, text=label, bg="#f3f3f3", width=36, anchor="w", font=("Segoe UI", 10)).pack(side="left")
+
+    btn = tk.Button(row, text="Choose", bg="#0078d7", fg="white", relief="flat",
+                    command=partial(choose_control_panel_color, key))
+    btn.pack(side="left", padx=5)
+    add_hover_effect(btn, "#0078d7")
+
+    preview = tk.Label(row, text="Not set", bg="#dcdcdc", width=10, font=("Segoe UI", 10))
+    preview.pack(side="left")
+    control_panel_preview_labels[key] = preview
 
 def choose_optional_color(index):
     color_code = colorchooser.askcolor(title=f"Choose color for {optional_labels[index]}")
