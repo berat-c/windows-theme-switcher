@@ -492,7 +492,7 @@ def delete_preset(preset_file):
             update_preset_viewer()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to delete preset:\n{e}")
-
+#yarrak
 def apply_preset(preset_file):
     we_exe = get_wallpaper_engine_exe()
     if we_exe:
