@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, colorchooser
 from PIL import Image, ImageTk
 import subprocess
 from functools import partial
+import colorsys
 
 # Utility Functions
 
@@ -70,91 +71,156 @@ def rgb_string_to_hex(s: str) -> str:
         return f"#{r:02x}{g:02x}{b:02x}"
     except Exception:
         return "#000000"
+# File where favorites will be saved
+FAVORITES_FILE = "favorites.json"
 
+def load_favorites():
+    if os.path.exists(FAVORITES_FILE):
+        try:
+            with open(FAVORITES_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
 
-# Modern Color Picker Popup
+def save_favorites(favorites):
+    try:
+        with open(FAVORITES_FILE, "w", encoding="utf-8") as f:
+            json.dump(favorites, f, indent=4)
+    except Exception:
+        pass
 
+# Modern Color Picker with Favorites + Hue/Saturation
 def open_modern_color_picker(initial_color="#0078D7", callback=None):
-    """Fresh-looking popup: hex entry + preview + swatches + optional full custom dialog"""
     popup = tk.Toplevel(root)
     popup.title("Pick Color")
-    popup.geometry("320x440")
+    popup.geometry("400x480")
     popup.configure(bg="#f9f9f9")
     popup.resizable(False, False)
     popup.transient(root)
     popup.grab_set()
 
-    # Center popup relative to root
+    # Center popup
     root.update_idletasks()
-    x = root.winfo_rootx() + root.winfo_width() // 2 - 160
-    y = root.winfo_rooty() + root.winfo_height() // 2 - 220
+    x = root.winfo_rootx() + root.winfo_width() // 2 - 200
+    y = root.winfo_rooty() + root.winfo_height() // 2 - 240
     popup.geometry(f"+{x}+{y}")
+
+    # Persistent favorites
+    if not hasattr(open_modern_color_picker, "favorites"):
+        open_modern_color_picker.favorites = load_favorites()
 
     color_var = tk.StringVar(value=initial_color if is_valid_hex(initial_color) else "#0078D7")
 
-    title = tk.Label(popup, text="Choose a color", bg="#f9f9f9", font=("Segoe UI", 11, "bold"))
-    title.pack(pady=(12, 4))
+    tk.Label(popup, text="Choose a color", bg="#f9f9f9", font=("Segoe UI", 11, "bold")).pack(pady=(12, 4))
 
     preview = tk.Label(popup, bg=color_var.get(), width=22, height=2, relief="flat", bd=0)
     preview.pack(pady=(6, 10))
 
-    # Hex entry
+    # --- Hex entry
     hex_frame = tk.Frame(popup, bg="#f9f9f9")
     hex_frame.pack(pady=6)
-    tk.Label(hex_frame, text="Hex", bg="#f9f9f9", font=("Segoe UI", 10)).pack(side="left", padx=(0, 6))
+    tk.Label(hex_frame, text="Hex:", bg="#f9f9f9", font=("Segoe UI", 10)).pack(side="left", padx=(0, 6))
 
-    # Styled entry (ttk)
-    style = ttk.Style(popup)
-    try:
-        style.theme_use("clam")
-    except Exception:
-        pass
-    style.configure("Rounded.TEntry", padding=(8, 6, 8, 6))
-
-    hex_entry = ttk.Entry(hex_frame, textvariable=color_var, width=12, justify="center", style="Rounded.TEntry")
+    hex_entry = ttk.Entry(hex_frame, textvariable=color_var, width=12, justify="center")
     hex_entry.pack(side="left")
     hex_entry.focus_set()
 
     warn_label = tk.Label(popup, text="", fg="#cc0000", bg="#f9f9f9", font=("Segoe UI", 9))
-    warn_label.pack(pady=(2, 0))
+    warn_label.pack()
 
     def on_color_change(*_):
         val = color_var.get().strip()
         if is_valid_hex(val):
             warn_label.config(text="")
-            try:
-                preview.config(bg=val)
-            except Exception:
-                pass
+            preview.config(bg=val, text=val)
         else:
             warn_label.config(text="Enter a valid hex like #0078D7")
 
     color_var.trace_add("write", on_color_change)
 
-    # Swatches
-    swatch_title = tk.Label(popup, text="Quick swatches", bg="#f9f9f9", font=("Segoe UI", 10))
-    swatch_title.pack(pady=(12, 4))
+    # --- Hue/Saturation canvas
+    sat_frame = tk.Frame(popup, bg="#f9f9f9")
+    sat_frame.pack(pady=12)
 
-    preset_colors = [
-        "#0078D7", "#D83B01", "#107C10", "#FFB900", "#5C2D91",
-        "#E81123", "#00B7C3", "#B4009E", "#FF8C00", "#498205"
-    ]
-    swatch_frame = tk.Frame(popup, bg="#f9f9f9")
-    swatch_frame.pack(pady=6)
-    for i, col in enumerate(preset_colors):
-        btn = tk.Button(swatch_frame, bg=col, width=3, height=2, relief="flat", bd=0,
-                        command=lambda c=col: color_var.set(c), activebackground=col)
-        btn.grid(row=i//5, column=i%5, padx=6, pady=6)
-        add_hover_effect(btn, col)
+    hue_canvas = tk.Canvas(sat_frame, width=300, height=20, bd=0, highlightthickness=1, relief="ridge")
+    hue_canvas.pack(pady=6)
 
-    def pick_custom():
-        chosen = colorchooser.askcolor(color=color_var.get())[1]
-        if chosen and is_valid_hex(chosen):
-            color_var.set(chosen)
+    # Draw hue gradient
+    for x in range(300):
+        rgb = colorsys.hsv_to_rgb(x/300.0, 1, 1)
+        hex_val = f"#{int(rgb[0]*255):02x}{int(rgb[1]*255):02x}{int(rgb[2]*255):02x}"
+        hue_canvas.create_line(x, 0, x, 20, fill=hex_val)
 
-    # Buttons
-    btn_frame = tk.Frame(popup, bg="#f9f9f9")
-    btn_frame.pack(pady=16)
+    # Saturation/value square
+    sv_canvas = tk.Canvas(sat_frame, width=300, height=150, bd=0, highlightthickness=1, relief="ridge")
+    sv_canvas.pack()
+
+    hue_value = tk.DoubleVar(value=0)  # hue (0-1)
+    sat_value = tk.DoubleVar(value=1)  # saturation (0-1)
+    val_value = tk.DoubleVar(value=1)  # brightness (0-1)
+
+    def update_sv_square():
+        sv_canvas.delete("all")
+        for x in range(300):
+            for y in range(0, 150, 3):  # skip some pixels for performance
+                s = x / 300
+                v = 1 - (y / 150)
+                r, g, b = colorsys.hsv_to_rgb(hue_value.get(), s, v)
+                hex_val = f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+                sv_canvas.create_line(x, y, x, y+3, fill=hex_val)
+
+    update_sv_square()
+
+    def on_hue_click(event):
+        hue_value.set(event.x / 300.0)
+        update_sv_square()
+
+    def on_sv_click(event):
+        s = max(0, min(1, event.x / 300))
+        v = max(0, min(1, 1 - (event.y / 150)))
+        sat_value.set(s)
+        val_value.set(v)
+        r, g, b = colorsys.hsv_to_rgb(hue_value.get(), s, v)
+        hex_val = f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+        color_var.set(hex_val.upper())
+
+    hue_canvas.bind("<Button-1>", on_hue_click)
+    hue_canvas.bind("<B1-Motion>", on_hue_click)
+    sv_canvas.bind("<Button-1>", on_sv_click)
+    sv_canvas.bind("<B1-Motion>", on_sv_click)
+
+    # --- Favorites
+    tk.Label(popup, text="Favorites", bg="#f9f9f9", font=("Segoe UI", 10)).pack(pady=(12, 4))
+    fav_frame = tk.Frame(popup, bg="#f9f9f9")
+    fav_frame.pack()
+
+    def draw_favorites():
+        for w in fav_frame.winfo_children():
+            w.destroy()
+        for i, col in enumerate(open_modern_color_picker.favorites):
+            btn = tk.Button(fav_frame, bg=col, width=3, height=2, relief="flat",
+                            command=lambda c=col: color_var.set(c))
+            btn.grid(row=i // 10, column=i % 10, padx=4, pady=4)
+            add_hover_effect(btn, col)
+        if not open_modern_color_picker.favorites:
+            tk.Label(fav_frame, text="(No favorites yet)", bg="#f9f9f9", fg="gray").pack()
+
+    draw_favorites()
+
+    def add_to_favorites():
+        val = color_var.get()
+        if is_valid_hex(val) and val not in open_modern_color_picker.favorites:
+            open_modern_color_picker.favorites.append(val)
+            save_favorites(open_modern_color_picker.favorites)
+            draw_favorites()
+
+    # --- Buttons
+    btn_frame = tk.Frame(popup, bg="#f9f9f9"); btn_frame.pack(pady=12)
+
+    fav_btn = tk.Button(btn_frame, text="Add to Favorites", bg="#0078d7", fg="white",
+                        relief="flat", command=add_to_favorites)
+    fav_btn.pack(side="left", padx=6)
 
     def do_ok():
         if not is_valid_hex(color_var.get()):
@@ -164,19 +230,11 @@ def open_modern_color_picker(initial_color="#0078D7", callback=None):
             callback(color_var.get())
         popup.destroy()
 
-    custom_btn = tk.Button(btn_frame, text="Custom…", command=pick_custom,
-                           bg="#e6e6e6", relief="flat", width=10)
-    add_hover_effect(custom_btn, "#e6e6e6")
-    custom_btn.pack(side="left", padx=6)
-
-    ok_btn = tk.Button(btn_frame, text="OK", command=do_ok, bg="#0078D7", fg="white", relief="flat", width=10)
-    add_hover_effect(ok_btn, "#0078D7")
+    ok_btn = tk.Button(btn_frame, text="OK", command=do_ok, bg="#28a745", fg="white", relief="flat", width=10)
     ok_btn.pack(side="left", padx=6)
 
     cancel_btn = tk.Button(btn_frame, text="Cancel", command=popup.destroy, bg="#e6e6e6", relief="flat", width=10)
-    add_hover_effect(cancel_btn, "#e6e6e6")
     cancel_btn.pack(side="left", padx=6)
-
 
 # Wallpaper Engine Integration
 
@@ -492,7 +550,7 @@ def delete_preset(preset_file):
             update_preset_viewer()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to delete preset:\n{e}")
-#yarrak
+
 def apply_preset(preset_file):
     we_exe = get_wallpaper_engine_exe()
     if we_exe:
